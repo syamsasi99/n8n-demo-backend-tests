@@ -38,7 +38,9 @@ test_report_enhanced.json
 .report_*
 test-runs/
 
-# Google Drive credentials
+# Google Drive OAuth credentials
+credentials.json
+token.json
 *credentials*.json
 service-account*.json
 gd_credentials.json

@@ -4,6 +4,7 @@ Upload test results to Google Drive
 import os
 import json
 from datetime import datetime
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -14,29 +15,30 @@ from googleapiclient.errors import HttpError
 class DriveUploader:
     """Upload files to Google Drive"""
 
-    def __init__(self, credentials_path=None, folder_id=None):
+    def __init__(self, credentials_path=None, folder_id=None, use_oauth=True):
         """
         Initialize Drive uploader
 
         Args:
-            credentials_path: Path to service account credentials JSON
+            credentials_path: Path to OAuth token JSON or service account credentials JSON
             folder_id: Google Drive folder ID to upload to
+            use_oauth: If True, use OAuth authentication; if False, use service account
         """
         self.credentials_path = credentials_path or os.getenv('GOOGLE_DRIVE_CREDENTIALS')
         self.folder_id = folder_id or os.getenv('GOOGLE_DRIVE_FOLDER_ID')
+        self.use_oauth = use_oauth
         self.service = None
+
+        # For OAuth, check for token JSON in environment
+        self.token_json = os.getenv('GOOGLE_TOKEN_JSON')
 
     def authenticate(self):
         """Authenticate with Google Drive API"""
         try:
-            if not self.credentials_path:
-                raise ValueError("Google Drive credentials path not provided. Set GOOGLE_DRIVE_CREDENTIALS environment variable.")
-
-            # Use service account credentials
-            credentials = service_account.Credentials.from_service_account_file(
-                self.credentials_path,
-                scopes=['https://www.googleapis.com/auth/drive.file']
-            )
+            if self.use_oauth:
+                credentials = self._authenticate_oauth()
+            else:
+                credentials = self._authenticate_service_account()
 
             self.service = build('drive', 'v3', credentials=credentials)
             print("✓ Successfully authenticated with Google Drive")
@@ -45,6 +47,49 @@ class DriveUploader:
         except Exception as e:
             print(f"✗ Authentication failed: {e}")
             return False
+
+    def _authenticate_oauth(self):
+        """Authenticate using OAuth credentials"""
+        SCOPES = ['https://www.googleapis.com/auth/drive.file']
+
+        # Load token from environment or file
+        if self.token_json:
+            # Load from environment variable (preferred for CI/CD)
+            print("→ Using OAuth credentials from environment")
+            token_data = json.loads(self.token_json)
+            creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+        elif self.credentials_path and os.path.exists(self.credentials_path):
+            # Load from file (for local testing)
+            print(f"→ Using OAuth credentials from file: {self.credentials_path}")
+            creds = Credentials.from_authorized_user_file(self.credentials_path, SCOPES)
+        else:
+            raise ValueError(
+                "No OAuth credentials found. Set GOOGLE_TOKEN_JSON environment variable or provide credentials_path"
+            )
+
+        # Refresh token if needed
+        if not creds.valid:
+            if creds.expired and creds.refresh_token:
+                print("⟳ Refreshing access token...")
+                creds.refresh(Request())
+            else:
+                raise Exception("Invalid credentials: no refresh token available")
+
+        return creds
+
+    def _authenticate_service_account(self):
+        """Authenticate using service account (kept for reference)"""
+        if not self.credentials_path:
+            raise ValueError(
+                "Service account credentials path not provided. Set GOOGLE_DRIVE_CREDENTIALS environment variable."
+            )
+
+        print(f"→ Using service account credentials from file: {self.credentials_path}")
+        credentials = service_account.Credentials.from_service_account_file(
+            self.credentials_path,
+            scopes=['https://www.googleapis.com/auth/drive.file']
+        )
+        return credentials
 
     def upload_file(self, file_path, custom_name=None):
         """

@@ -351,23 +351,32 @@ Test reports can be automatically uploaded to Google Drive with timestamps and r
 
 See [GOOGLE_DRIVE_SETUP.md](GOOGLE_DRIVE_SETUP.md) for detailed setup instructions.
 
-Quick setup:
+**Quick setup:**
 1. Create a Google Cloud project and enable Google Drive API
-2. Create a service account and download the JSON key
-3. Share a Google Drive folder with the service account email
-4. Set environment variables or GitHub secrets:
-   - `GOOGLE_DRIVE_CREDENTIALS`: Service account JSON key
-   - `GOOGLE_DRIVE_FOLDER_ID`: Google Drive folder ID
+2. Configure OAuth consent screen and create OAuth 2.0 credentials
+3. Download `credentials.json` and place it in the project directory
+4. Run `python get_oauth_token.py` locally to generate OAuth token
+5. Copy the token JSON output and add to GitHub Secrets:
+   - `GOOGLE_TOKEN_JSON`: Complete OAuth token JSON (includes refresh token)
+   - `GOOGLE_DRIVE_FOLDER_ID`: Google Drive folder ID (optional, uploads to root if not set)
 
 ### Upload Reports Manually
 
 ```bash
-# Upload enhanced test report to Google Drive
+# First time: Generate OAuth token locally
+python get_oauth_token.py
+
+# Upload using generated token.json
 python upload_to_drive.py \
   --file test_report_enhanced.json \
-  --credentials /path/to/service-account-key.json \
+  --credentials token.json \
   --folder-id "YOUR_FOLDER_ID" \
   --run-id "custom-run-id"
+
+# Or use environment variable (for CI/CD)
+export GOOGLE_TOKEN_JSON='{"token":"ya29...","refresh_token":"1//0g...",...}'
+export GOOGLE_DRIVE_FOLDER_ID="YOUR_FOLDER_ID"
+python upload_to_drive.py --file test_report_enhanced.json --run-id "custom-run-id"
 ```
 
 ### Uploaded File Format

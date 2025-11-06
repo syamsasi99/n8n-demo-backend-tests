@@ -1,11 +1,16 @@
-# Google Drive Upload Setup
+# Google Drive Upload Setup (OAuth)
 
-This guide explains how to set up automated uploading of test reports to Google Drive.
+This guide explains how to set up automated uploading of test reports to Google Drive using OAuth authentication.
+
+## Overview
+
+This setup uses **OAuth 2.0** authentication, which allows the app to upload files to your personal Google Drive account. This is the recommended approach for individual users.
 
 ## Prerequisites
 
 - A Google account
 - Access to Google Cloud Console
+- Python 3.8+ installed locally
 
 ## Step 1: Create a Google Cloud Project
 
@@ -19,79 +24,113 @@ This guide explains how to set up automated uploading of test reports to Google 
 2. Search for "Google Drive API"
 3. Click **Enable**
 
-## Step 3: Create a Service Account
+## Step 3: Configure OAuth Consent Screen
+
+1. Go to **APIs & Services > OAuth consent screen**
+2. Choose **External** user type (unless you have a Google Workspace account)
+3. Click **Create**
+4. Fill in the required information:
+   - **App name**: `Test Report Uploader` (or any name you prefer)
+   - **User support email**: Your email address
+   - **Developer contact information**: Your email address
+5. Click **Save and Continue**
+6. On the **Scopes** page, click **Add or Remove Scopes**
+7. Add the following scope: `https://www.googleapis.com/auth/drive.file`
+   - This allows the app to only access files it creates
+8. Click **Update** and then **Save and Continue**
+9. On the **Test users** page, click **Add Users**
+10. Add your Google account email
+11. Click **Save and Continue**
+
+## Step 4: Create OAuth 2.0 Credentials
 
 1. Go to **APIs & Services > Credentials**
-2. Click **Create Credentials > Service Account**
-3. Fill in the details:
-   - Service account name: `test-report-uploader`
-   - Service account ID: `test-report-uploader`
-   - Description: `Uploads test reports to Google Drive`
-4. Click **Create and Continue**
-5. Skip the optional steps and click **Done**
-
-## Step 4: Create Service Account Key
-
-1. Click on the service account you just created
-2. Go to the **Keys** tab
-3. Click **Add Key > Create New Key**
-4. Select **JSON** format
+2. Click **Create Credentials > OAuth client ID**
+3. Choose application type: **Desktop app**
+4. Give it a name: `Test Report Uploader - Desktop`
 5. Click **Create**
-6. The JSON key file will be downloaded - **keep this file secure!**
+6. Click **Download JSON** to download the credentials
+7. Save the file as `credentials.json` in your project directory
 
-## Step 5: Share Google Drive Folder with Service Account
+## Step 5: Generate OAuth Refresh Token (Local Setup)
 
-1. Create a folder in Google Drive where you want to upload test reports
-2. Right-click the folder and select **Share**
-3. Enter the service account email (found in the JSON key file or Cloud Console)
-   - Format: `test-report-uploader@YOUR-PROJECT-ID.iam.gserviceaccount.com`
-4. Give it **Editor** access
-5. Copy the folder ID from the URL:
-   - URL format: `https://drive.google.com/drive/folders/FOLDER_ID_HERE`
-   - The FOLDER_ID is the long string after `/folders/`
+**This is a one-time setup that must be done locally on your machine.**
 
-## Step 6: Configure GitHub Secrets (for CI/CD)
+1. Make sure `credentials.json` is in your project directory
+2. Install dependencies (if not already installed):
+   ```bash
+   pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+   ```
+3. Run the token generator script:
+   ```bash
+   python get_oauth_token.py
+   ```
+4. Your browser will automatically open for authentication:
+   - Sign in with your Google account
+   - Click **Continue** on the consent screen
+   - Grant access to Google Drive
+5. The script will generate `token.json` and display its contents
+6. **Copy the entire JSON output** - you'll need it for GitHub Secrets
 
-1. In your GitHub repository, go to **Settings > Secrets and variables > Actions**
-2. Add the following secrets:
-
-   **GOOGLE_DRIVE_CREDENTIALS**
-   - Click **New repository secret**
-   - Name: `GOOGLE_DRIVE_CREDENTIALS`
-   - Value: Paste the entire contents of the JSON key file
-   - Click **Add secret**
-
-   **GOOGLE_DRIVE_FOLDER_ID**
-   - Click **New repository secret**
-   - Name: `GOOGLE_DRIVE_FOLDER_ID`
-   - Value: Paste the folder ID from Step 5
-   - Click **Add secret**
-
-## Step 7: Local Testing (Optional)
-
-For local testing, set environment variables:
-
-```bash
-# Linux/Mac
-export GOOGLE_DRIVE_CREDENTIALS="/path/to/service-account-key.json"
-export GOOGLE_DRIVE_FOLDER_ID="your-folder-id-here"
-
-# Windows (PowerShell)
-$env:GOOGLE_DRIVE_CREDENTIALS="C:\path\to\service-account-key.json"
-$env:GOOGLE_DRIVE_FOLDER_ID="your-folder-id-here"
+**Example output:**
+```json
+{
+  "token": "ya29.a0AfH6SMB...",
+  "refresh_token": "1//0gHW9Y...",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "client_id": "123456789.apps.googleusercontent.com",
+  "client_secret": "GOCSPX-...",
+  "scopes": ["https://www.googleapis.com/auth/drive.file"]
+}
 ```
 
-Then run tests and upload:
+## Step 6: Get Google Drive Folder ID
+
+1. Open [Google Drive](https://drive.google.com/)
+2. Create a folder where you want to upload test reports (or use an existing folder)
+3. Open the folder
+4. Copy the **Folder ID** from the URL:
+   - URL format: `https://drive.google.com/drive/folders/FOLDER_ID_HERE`
+   - The FOLDER_ID is the long string after `/folders/`
+   - Example: If URL is `https://drive.google.com/drive/folders/1a2b3c4d5e6f7g8h`, then Folder ID is `1a2b3c4d5e6f7g8h`
+
+## Step 7: Configure GitHub Secrets
+
+1. In your GitHub repository, go to **Settings > Secrets and variables > Actions**
+2. Click **New repository secret**
+3. Add the following secrets:
+
+   **GOOGLE_TOKEN_JSON**
+   - Name: `GOOGLE_TOKEN_JSON`
+   - Value: Paste the **entire JSON output** from Step 5
+   - Click **Add secret**
+
+   **GOOGLE_DRIVE_FOLDER_ID** (Optional)
+   - Name: `GOOGLE_DRIVE_FOLDER_ID`
+   - Value: Paste the folder ID from Step 6
+   - Click **Add secret**
+   - Note: If not provided, files will be uploaded to your Drive's root folder
+
+## Step 8: Test Locally (Optional)
+
+For local testing before pushing to GitHub:
 
 ```bash
-# Run tests
-pytest -v
+# Set environment variables (Linux/Mac)
+export GOOGLE_TOKEN_JSON='{"token":"ya29...","refresh_token":"1//0g...",...}'
+export GOOGLE_DRIVE_FOLDER_ID="your-folder-id-here"
 
-# Generate enhanced report
-python generate_report.py
+# Or simply use the token.json file that was generated
+python upload_to_drive.py --file test_report_enhanced.json --credentials token.json --folder-id "your-folder-id"
+```
 
-# Upload to Google Drive
-python upload_to_drive.py
+```powershell
+# Set environment variables (Windows PowerShell)
+$env:GOOGLE_TOKEN_JSON='{"token":"ya29...","refresh_token":"1//0g...",...}'
+$env:GOOGLE_DRIVE_FOLDER_ID="your-folder-id-here"
+
+# Or use the token.json file
+python upload_to_drive.py --file test_report_enhanced.json --credentials token.json --folder-id "your-folder-id"
 ```
 
 ## Uploaded File Naming Convention
@@ -116,36 +155,58 @@ test_report_2025-01-15_14-30-45_run_12345678_(15P_5F_20T).json
 
 ## Security Best Practices
 
-1. **Never commit the service account JSON key to Git**
-   - Already added to `.gitignore` as `*credentials*.json`
+1. **Never commit sensitive files to Git**
+   - `credentials.json` - OAuth client secrets (already in `.gitignore`)
+   - `token.json` - OAuth tokens with refresh token (already in `.gitignore`)
+   - These are already excluded in `.gitignore`
 
-2. **Rotate keys periodically**
-   - Create a new key and delete the old one every few months
+2. **Rotate OAuth tokens periodically**
+   - Refresh tokens can be revoked at: [Google Account Permissions](https://myaccount.google.com/permissions)
+   - Regenerate tokens every 3-6 months for security
 
 3. **Use minimal permissions**
-   - Service account only has access to the specific folder
-   - Only has Editor permissions (not Owner)
+   - We use `drive.file` scope which only allows access to files created by this app
+   - This is safer than full Drive access
 
-4. **Monitor usage**
-   - Check Google Cloud Console for API usage
-   - Review uploaded files periodically
+4. **Protect GitHub Secrets**
+   - Only repository admins should have access to secrets
+   - Never log or expose the GOOGLE_TOKEN_JSON value
+
+5. **Monitor usage**
+   - Check [Google Cloud Console](https://console.cloud.google.com/apis/api/drive.googleapis.com) for API usage
+   - Review uploaded files in your Drive folder periodically
 
 ## Troubleshooting
 
-### Authentication Error
-- Verify the service account JSON is correct
-- Ensure the service account has access to the folder
-- Check that Google Drive API is enabled
+### "Invalid credentials" Error
+- Make sure you copied the entire `token.json` contents to GitHub Secrets
+- Verify the JSON is valid (no missing brackets or quotes)
+- Ensure you included the `refresh_token` field
 
-### Folder Not Found
-- Verify the folder ID is correct
-- Make sure you shared the folder with the service account email
-- Check that the service account has Editor permissions
+### "No refresh token available" Error
+- This happens if you didn't use `access_type='offline'` during token generation
+- Solution: Delete `token.json` and run `get_oauth_token.py` again
+- Make sure to approve the consent screen when prompted
 
-### Quota Exceeded
-- Google Drive API has usage quotas
-- Check [Google Cloud Console](https://console.cloud.google.com/apis/api/drive.googleapis.com/quotas) for limits
-- Default limit: 20,000 requests per 100 seconds per user
+### Browser doesn't open during token generation
+- Make sure you're running `get_oauth_token.py` on your local machine (not on a server)
+- If using SSH, forward the port: `ssh -L 8080:localhost:8080 user@server`
+- Manually copy the URL from the terminal and open it in your browser
+
+### "App is not published" Warning
+- This is normal when using "External" user type in testing mode
+- Click "Advanced" → "Go to [App Name] (unsafe)" to proceed
+- This is safe for your own app
+
+### Token expires / Invalid grant
+- Refresh tokens can expire after 6 months of inactivity
+- Regenerate the token by running `get_oauth_token.py` again
+- Update the GitHub Secret with the new token
+
+### Files uploaded to root instead of specific folder
+- Verify you set the `GOOGLE_DRIVE_FOLDER_ID` secret correctly
+- Double-check the folder ID from the Drive URL
+- Make sure your Google account owns the folder or has access to it
 
 ## Additional Resources
 
