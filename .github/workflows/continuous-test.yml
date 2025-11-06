@@ -1,0 +1,174 @@
+name: Continuous Testing (Multiple Runs)
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      runs:
+        description: 'Number of test runs'
+        required: true
+        default: '5'
+        type: choice
+        options:
+          - '3'
+          - '5'
+          - '10'
+
+jobs:
+  continuous-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run multiple test iterations
+      run: |
+        mkdir -p test-runs
+        TOTAL_RUNS=${{ github.event.inputs.runs }}
+
+        echo "Running tests $TOTAL_RUNS times to analyze random failure patterns..."
+
+        for i in $(seq 1 $TOTAL_RUNS); do
+          echo ""
+          echo "=========================================="
+          echo "Test Run #$i of $TOTAL_RUNS"
+          echo "=========================================="
+
+          # Run tests (ignore exit code)
+          pytest -v --json-report --json-report-file=test-runs/run_${i}_results.json || true
+
+          # Generate enhanced report
+          python generate_report.py
+          mv test_report_enhanced.json test-runs/run_${i}_enhanced.json
+
+          # Brief summary
+          python -c "
+        import json
+        with open('test-runs/run_${i}_enhanced.json', 'r') as f:
+            report = json.load(f)
+        summary = report['summary']
+        print(f'Run ${i}: {summary[\"passed\"]}/{summary[\"total_tests\"]} passed ({summary[\"pass_rate\"]}%)')
+        "
+        done
+
+    - name: Generate aggregate statistics
+      run: |
+        python - <<'EOF'
+        import json
+        import glob
+        from collections import defaultdict
+
+        # Load all enhanced reports
+        report_files = sorted(glob.glob('test-runs/*_enhanced.json'))
+
+        all_pass_rates = []
+        all_error_types = defaultdict(int)
+        test_stability = defaultdict(lambda: {'passed': 0, 'failed': 0})
+
+        for report_file in report_files:
+            with open(report_file, 'r') as f:
+                report = json.load(f)
+
+            # Collect pass rates
+            all_pass_rates.append(report['summary']['pass_rate'])
+
+            # Collect error types
+            for error_type, count in report['failure_analysis']['error_types'].items():
+                all_error_types[error_type] += count
+
+            # Track individual test stability
+            for test in report['test_results']['passed']:
+                test_name = test['name'].split('::')[-1]
+                test_stability[test_name]['passed'] += 1
+
+            for test in report['test_results']['failed']:
+                test_name = test['name'].split('::')[-1]
+                test_stability[test_name]['failed'] += 1
+
+        # Generate summary
+        print("=" * 60)
+        print("AGGREGATE TEST STATISTICS")
+        print("=" * 60)
+        print(f"\nTotal Runs: {len(report_files)}")
+        print(f"Average Pass Rate: {sum(all_pass_rates) / len(all_pass_rates):.1f}%")
+        print(f"Min Pass Rate: {min(all_pass_rates):.1f}%")
+        print(f"Max Pass Rate: {max(all_pass_rates):.1f}%")
+
+        print(f"\n{'Error Type':<30} {'Total Occurrences':<20}")
+        print("-" * 50)
+        for error_type, count in sorted(all_error_types.items(), key=lambda x: x[1], reverse=True):
+            print(f"{error_type:<30} {count:<20}")
+
+        print(f"\n{'Test Name':<50} {'Stability %':<15}")
+        print("-" * 65)
+        for test_name, stats in sorted(test_stability.items()):
+            total = stats['passed'] + stats['failed']
+            stability = (stats['passed'] / total * 100) if total > 0 else 0
+            print(f"{test_name:<50} {stability:>6.1f}%")
+
+        # Save aggregate report
+        aggregate = {
+            'total_runs': len(report_files),
+            'average_pass_rate': sum(all_pass_rates) / len(all_pass_rates),
+            'min_pass_rate': min(all_pass_rates),
+            'max_pass_rate': max(all_pass_rates),
+            'error_distribution': dict(all_error_types),
+            'test_stability': {name: {
+                'passed': stats['passed'],
+                'failed': stats['failed'],
+                'stability_percent': (stats['passed'] / (stats['passed'] + stats['failed']) * 100)
+            } for name, stats in test_stability.items()}
+        }
+
+        with open('test-runs/aggregate_statistics.json', 'w') as f:
+            json.dump(aggregate, f, indent=2)
+
+        print("\n" + "=" * 60)
+        print("Aggregate statistics saved to test-runs/aggregate_statistics.json")
+        print("=" * 60)
+        EOF
+
+    - name: Upload all test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: continuous-test-results
+        path: test-runs/
+        retention-days: 30
+
+    - name: Add results to job summary
+      if: always()
+      run: |
+        echo "## 📊 Continuous Testing Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        python - <<'EOF'
+        import json
+
+        with open('test-runs/aggregate_statistics.json', 'r') as f:
+            stats = json.load(f)
+
+        print(f"**Total Test Runs:** {stats['total_runs']}")
+        print(f"**Average Pass Rate:** {stats['average_pass_rate']:.1f}%")
+        print(f"**Pass Rate Range:** {stats['min_pass_rate']:.1f}% - {stats['max_pass_rate']:.1f}%")
+        print("\n### Error Distribution\n")
+
+        for error_type, count in sorted(stats['error_distribution'].items(), key=lambda x: x[1], reverse=True):
+            print(f"- **{error_type}:** {count}")
+
+        print("\n### Most Unstable Tests (Lowest Stability)\n")
+        unstable = sorted(stats['test_stability'].items(), key=lambda x: x[1]['stability_percent'])[:5]
+        for test_name, data in unstable:
+            print(f"- `{test_name}`: {data['stability_percent']:.1f}% ({data['passed']}/{data['passed'] + data['failed']} passed)")
+        EOF >> $GITHUB_STEP_SUMMARY

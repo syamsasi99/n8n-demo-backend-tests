@@ -1,0 +1,68 @@
+name: Scheduled Tests
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  scheduled-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        pytest -v
+
+    - name: Generate enhanced report
+      if: always()
+      run: |
+        python generate_report.py
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: scheduled-test-results-${{ github.run_number }}
+        path: |
+          test_results.json
+          test_report_enhanced.json
+        retention-days: 7
+
+    - name: Create issue on high failure rate
+      if: always()
+      run: |
+        python - <<'EOF'
+        import json
+        import os
+
+        with open('test_report_enhanced.json', 'r') as f:
+            report = json.load(f)
+
+        fail_rate = report['summary']['fail_rate']
+
+        # If failure rate exceeds 80%, indicate concern
+        if fail_rate > 80:
+            print(f"⚠️ High failure rate detected: {fail_rate}%")
+            with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+                f.write(f"\n\n## ⚠️ Alert: High Failure Rate\n\n")
+                f.write(f"Current failure rate is **{fail_rate}%**, which exceeds the 80% threshold.\n")
+                f.write(f"This may indicate an issue with the test environment or API.\n")
+        else:
+            print(f"✅ Failure rate within acceptable range: {fail_rate}%")
+        EOF

@@ -1,0 +1,111 @@
+name: API Integration Tests
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+  workflow_dispatch:  # Allow manual trigger
+  schedule:
+    # Run tests daily at 9 AM UTC
+    - cron: '0 9 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        pytest -v --tb=short
+
+    - name: Generate enhanced report
+      if: always()  # Run even if tests fail
+      run: |
+        python generate_report.py
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-python-${{ matrix.python-version }}
+        path: |
+          test_results.json
+          test_report_enhanced.json
+        retention-days: 30
+
+    - name: Display test summary
+      if: always()
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        python -c "
+        import json
+        with open('test_report_enhanced.json', 'r') as f:
+            report = json.load(f)
+        summary = report['summary']
+        print(f\"**Total Tests:** {summary['total_tests']}\")
+        print(f\"**Passed:** {summary['passed']} ({summary['pass_rate']}%)\")
+        print(f\"**Failed:** {summary['failed']} ({summary['fail_rate']}%)\")
+        print(f\"**Duration:** {report['report_metadata']['total_duration']:.2f}s\")
+        " >> $GITHUB_STEP_SUMMARY
+
+        # Add failure analysis if there are failures
+        python -c "
+        import json
+        with open('test_report_enhanced.json', 'r') as f:
+            report = json.load(f)
+        if report['failure_analysis']['total_failures'] > 0:
+            print('\n### Failure Analysis\n')
+            for error_type, count in report['failure_analysis']['error_types'].items():
+                print(f'- **{error_type}:** {count}')
+        " >> $GITHUB_STEP_SUMMARY
+
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('test_report_enhanced.json', 'utf8'));
+          const summary = report.summary;
+
+          let comment = `## 🧪 Test Results for Python ${{ matrix.python-version }}\n\n`;
+          comment += `| Metric | Value |\n`;
+          comment += `|--------|-------|\n`;
+          comment += `| Total Tests | ${summary.total_tests} |\n`;
+          comment += `| ✅ Passed | ${summary.passed} (${summary.pass_rate}%) |\n`;
+          comment += `| ❌ Failed | ${summary.failed} (${summary.fail_rate}%) |\n`;
+          comment += `| ⏱️ Duration | ${report.report_metadata.total_duration.toFixed(2)}s |\n\n`;
+
+          if (report.failure_analysis.total_failures > 0) {
+            comment += `### Failure Breakdown\n\n`;
+            for (const [errorType, count] of Object.entries(report.failure_analysis.error_types)) {
+              comment += `- **${errorType}**: ${count}\n`;
+            }
+          }
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
