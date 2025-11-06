@@ -12,9 +12,11 @@ A Python-based backend API integration testing framework built with pytest that 
 - **20 Sample API Integration Tests** covering common API operations (CRUD)
 - **Random Failure Simulation** - Tests randomly fail with various HTTP error codes
 - **JSON Test Result Reports** - Detailed test execution reports in JSON format
-- **Enhanced Reporting** - Summary statistics, failure analysis, and performance metrics
+- **Enhanced Reporting** - Summary statistics with detailed fake logs for AI analysis
 - **Fake API Client** - Simulates backend API with realistic failure scenarios
 - **Pytest Markers** - Organize tests by type (api, smoke, regression)
+- **Google Drive Integration** - Automatic upload of test reports with timestamps and run IDs
+- **Detailed Fake Logs** - Request/response logs, server logs, stack traces, and performance metrics
 
 ## Project Structure
 
@@ -22,18 +24,20 @@ A Python-based backend API integration testing framework built with pytest that 
 n8n-demo-backend-tests/
 ├── .github/
 │   └── workflows/
-│       ├── test.yml                # Main CI/CD workflow
+│       ├── test.yml                # Main CI/CD workflow with Google Drive upload
 │       ├── continuous-test.yml     # Multi-run testing workflow
 │       └── scheduled-test.yml      # Scheduled monitoring workflow
 ├── tests/
 │   ├── __init__.py
-│   ├── conftest.py                 # Pytest fixtures and configuration
-│   ├── fake_api_client.py          # Fake API client with random failures
+│   ├── conftest.py                 # Pytest fixtures and log capturing
+│   ├── fake_api_client.py          # Fake API client with detailed logs
 │   └── test_api_integration.py     # 20 sample API tests
 ├── pytest.ini                       # Pytest configuration
-├── requirements.txt                 # Python dependencies
-├── generate_report.py              # Enhanced report generator
+├── requirements.txt                 # Python dependencies (includes Google Drive API)
+├── generate_report.py              # Enhanced report generator with run ID
+├── upload_to_drive.py              # Google Drive upload script
 ├── run_tests.sh                    # Quick start script
+├── GOOGLE_DRIVE_SETUP.md           # Google Drive setup guide
 ├── .gitignore                      # Git ignore file
 └── README.md                       # This file
 ```
@@ -341,6 +345,54 @@ def custom_test_data():
 ### Customize Fake API Responses
 
 Modify [tests/fake_api_client.py](tests/fake_api_client.py) to add custom response logic.
+
+## Google Drive Integration
+
+Test reports can be automatically uploaded to Google Drive with timestamps and run IDs for easy tracking and historical analysis.
+
+### Setup
+
+See [GOOGLE_DRIVE_SETUP.md](GOOGLE_DRIVE_SETUP.md) for detailed setup instructions.
+
+Quick setup:
+1. Create a Google Cloud project and enable Google Drive API
+2. Create a service account and download the JSON key
+3. Share a Google Drive folder with the service account email
+4. Set environment variables or GitHub secrets:
+   - `GOOGLE_DRIVE_CREDENTIALS`: Service account JSON key
+   - `GOOGLE_DRIVE_FOLDER_ID`: Google Drive folder ID
+
+### Upload Reports Manually
+
+```bash
+# Upload enhanced test report to Google Drive
+python upload_to_drive.py \
+  --file test_report_enhanced.json \
+  --credentials /path/to/service-account-key.json \
+  --folder-id "YOUR_FOLDER_ID" \
+  --run-id "custom-run-id"
+```
+
+### Uploaded File Format
+
+Files are uploaded with descriptive names:
+```
+test_report_2025-01-15_14-30-45_run_12345678_(15P_5F_20T).json
+```
+
+Where:
+- `2025-01-15_14-30-45`: Timestamp
+- `12345678`: GitHub run ID or custom ID
+- `15P_5F_20T`: 15 passed, 5 failed, 20 total tests
+
+### CI/CD Integration
+
+GitHub Actions workflows automatically upload reports to Google Drive when:
+- Tests run on push/PR (test.yml)
+- Scheduled tests run every 6 hours (scheduled-test.yml)
+- Continuous testing runs (continuous-test.yml)
+
+Reports include detailed logs for AI-powered failure analysis.
 
 ## Troubleshooting
 

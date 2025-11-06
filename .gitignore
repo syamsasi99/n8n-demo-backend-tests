@@ -36,6 +36,12 @@ htmlcov/
 test_results.json
 test_report_enhanced.json
 .report_*
+test-runs/
+
+# Google Drive credentials
+*credentials*.json
+service-account*.json
+gd_credentials.json
 
 # IDE
 .vscode/

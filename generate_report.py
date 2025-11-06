@@ -4,18 +4,21 @@ Processes pytest JSON output and generates a detailed test report
 """
 import json
 import sys
+import os
 from datetime import datetime
 from pathlib import Path
 
 
 def generate_enhanced_report(json_report_path: str = "test_results.json",
-                             output_path: str = "test_report_enhanced.json"):
+                             output_path: str = "test_report_enhanced.json",
+                             run_id: str = None):
     """
     Generate an enhanced test report from pytest JSON output
 
     Args:
         json_report_path: Path to pytest JSON report
         output_path: Path for enhanced output report
+        run_id: Optional run identifier (e.g., GitHub run ID)
     """
     try:
         with open(json_report_path, 'r') as f:
@@ -33,10 +36,15 @@ def generate_enhanced_report(json_report_path: str = "test_results.json",
     skipped = [t for t in tests if t['outcome'] == 'skipped']
     errors = [t for t in tests if t['outcome'] == 'error']
 
+    # Get run ID from parameter or environment variable
+    if not run_id:
+        run_id = os.getenv('GITHUB_RUN_ID', os.getenv('RUN_ID', 'local'))
+
     # Build enhanced report
     enhanced_report = {
         "report_metadata": {
             "generated_at": datetime.now().isoformat(),
+            "run_id": run_id,
             "pytest_version": pytest_data.get('pytest_version', 'unknown'),
             "python_version": pytest_data.get('python', 'unknown'),
             "total_duration": pytest_data.get('duration', 0),
