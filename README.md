@@ -1,13 +1,11 @@
 # Backend API Integration Testing Framework
 
-[![API Integration Tests](https://github.com/YOUR_USERNAME/n8n-demo-backend-tests/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_USERNAME/n8n-demo-backend-tests/actions/workflows/test.yml)
-[![Scheduled Tests](https://github.com/YOUR_USERNAME/n8n-demo-backend-tests/actions/workflows/scheduled-test.yml/badge.svg)](https://github.com/YOUR_USERNAME/n8n-demo-backend-tests/actions/workflows/scheduled-test.yml)
+[![API Integration Tests](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/test.yml/badge.svg)](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/test.yml)
+[![Scheduled Tests](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/scheduled-test.yml/badge.svg)](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/scheduled-test.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A Python-based backend API integration testing framework built with pytest that simulates API tests with random failures for realistic testing scenarios.
-
-> **Note:** Replace `YOUR_USERNAME` in the badge URLs above with your GitHub username after pushing to GitHub.
 
 ## Features
 
