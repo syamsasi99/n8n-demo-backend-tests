@@ -68,15 +68,15 @@ jobs:
         print(f\"**Duration:** {report['report_metadata']['total_duration']:.2f}s\")
         " >> $GITHUB_STEP_SUMMARY
 
-        # Add failure analysis if there are failures
+        # Add failure details if there are failures
         python -c "
         import json
         with open('test_report_enhanced.json', 'r') as f:
             report = json.load(f)
-        if report['failure_analysis']['total_failures'] > 0:
-            print('\n### Failure Analysis\n')
-            for error_type, count in report['failure_analysis']['error_types'].items():
-                print(f'- **{error_type}:** {count}')
+        if report['summary']['failed'] > 0:
+            print('\n### Failed Tests\n')
+            for test in report['test_results']['failed'][:5]:  # Show first 5 failures
+                print(f'- {test[\"name\"]}')
         " >> $GITHUB_STEP_SUMMARY
 
     - name: Comment PR with test results
@@ -96,11 +96,11 @@ jobs:
           comment += `| ❌ Failed | ${summary.failed} (${summary.fail_rate}%) |\n`;
           comment += `| ⏱️ Duration | ${report.report_metadata.total_duration.toFixed(2)}s |\n\n`;
 
-          if (report.failure_analysis.total_failures > 0) {
-            comment += `### Failure Breakdown\n\n`;
-            for (const [errorType, count] of Object.entries(report.failure_analysis.error_types)) {
-              comment += `- **${errorType}**: ${count}\n`;
-            }
+          if (report.summary.failed > 0) {
+            comment += `### Failed Tests\n\n`;
+            report.test_results.failed.slice(0, 5).forEach(test => {
+              comment += `- ${test.name}\n`;
+            });
           }
 
           github.rest.issues.createComment({

@@ -56,7 +56,8 @@ def generate_enhanced_report(json_report_path: str = "test_results.json",
                 {
                     "name": t['nodeid'],
                     "duration": t.get('duration', 0),
-                    "outcome": t['outcome']
+                    "outcome": t['outcome'],
+                    "logs": extract_logs(t)
                 }
                 for t in passed
             ],
@@ -66,7 +67,7 @@ def generate_enhanced_report(json_report_path: str = "test_results.json",
                     "duration": t.get('duration', 0),
                     "outcome": t['outcome'],
                     "error_message": t.get('call', {}).get('longrepr', 'No error message'),
-                    "error_type": extract_error_type(t)
+                    "logs": extract_logs(t)
                 }
                 for t in failed
             ],
@@ -79,7 +80,6 @@ def generate_enhanced_report(json_report_path: str = "test_results.json",
                 for t in skipped
             ]
         },
-        "failure_analysis": analyze_failures(failed),
         "performance_metrics": {
             "fastest_test": get_fastest_test(tests),
             "slowest_test": get_slowest_test(tests),
@@ -103,60 +103,29 @@ def generate_enhanced_report(json_report_path: str = "test_results.json",
     print(f"{'='*60}")
     print(f"\nEnhanced report saved to: {output_path}")
 
-    if failed:
-        print(f"\nFAILURE ANALYSIS:")
-        for error_type, count in enhanced_report['failure_analysis']['error_types'].items():
-            print(f"  - {error_type}: {count}")
-
     return enhanced_report
 
 
-def extract_error_type(test_result):
-    """Extract the error type from test result"""
-    longrepr = test_result.get('call', {}).get('longrepr', '')
+def extract_logs(test_result):
+    """Extract API logs from test result"""
+    # Check if logs are present in the test metadata
+    metadata = test_result.get('metadata', {})
+    if 'logs' in metadata:
+        return metadata['logs']
 
-    if isinstance(longrepr, str):
-        if 'APIException' in longrepr:
-            if '408' in longrepr or 'timeout' in longrepr.lower():
-                return 'Timeout'
-            elif '500' in longrepr:
-                return 'Internal Server Error'
-            elif '502' in longrepr:
-                return 'Bad Gateway'
-            elif '503' in longrepr:
-                return 'Service Unavailable'
-            elif '401' in longrepr:
-                return 'Unauthorized'
-            elif '403' in longrepr:
-                return 'Forbidden'
-            elif '404' in longrepr:
-                return 'Not Found'
-            elif '422' in longrepr:
-                return 'Validation Error'
-            elif '429' in longrepr:
-                return 'Rate Limit Exceeded'
-            elif '409' in longrepr:
-                return 'Conflict'
-            return 'API Exception'
-        elif 'AssertionError' in longrepr:
-            return 'Assertion Failed'
+    # Check in user_properties (pytest-json-report stores them here)
+    user_properties = test_result.get('user_properties', [])
+    for prop in user_properties:
+        # Handle both tuple format and dict format
+        if isinstance(prop, (list, tuple)) and len(prop) == 2:
+            key, value = prop
+            if key == 'logs':
+                return value
+        elif isinstance(prop, dict) and 'logs' in prop:
+            return prop['logs']
 
-    return 'Unknown Error'
-
-
-def analyze_failures(failed_tests):
-    """Analyze patterns in test failures"""
-    error_types = {}
-
-    for test in failed_tests:
-        error_type = extract_error_type(test)
-        error_types[error_type] = error_types.get(error_type, 0) + 1
-
-    return {
-        "total_failures": len(failed_tests),
-        "error_types": error_types,
-        "most_common_error": max(error_types.items(), key=lambda x: x[1])[0] if error_types else None
-    }
+    # If no logs found, return None
+    return None
 
 
 def get_fastest_test(tests):

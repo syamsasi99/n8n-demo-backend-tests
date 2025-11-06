@@ -83,9 +83,10 @@ jobs:
             # Collect pass rates
             all_pass_rates.append(report['summary']['pass_rate'])
 
-            # Collect error types
-            for error_type, count in report['failure_analysis']['error_types'].items():
-                all_error_types[error_type] += count
+            # Count failures by test name
+            for test in report['test_results']['failed']:
+                test_name = test['name'].split('::')[-1]
+                all_error_types[test_name] = all_error_types.get(test_name, 0) + 1
 
             # Track individual test stability
             for test in report['test_results']['passed']:
@@ -105,7 +106,7 @@ jobs:
         print(f"Min Pass Rate: {min(all_pass_rates):.1f}%")
         print(f"Max Pass Rate: {max(all_pass_rates):.1f}%")
 
-        print(f"\n{'Error Type':<30} {'Total Occurrences':<20}")
+        print(f"\n{'Test Failures':<30} {'Total Occurrences':<20}")
         print("-" * 50)
         for error_type, count in sorted(all_error_types.items(), key=lambda x: x[1], reverse=True):
             print(f"{error_type:<30} {count:<20}")
@@ -162,7 +163,7 @@ jobs:
         print(f"**Total Test Runs:** {stats['total_runs']}")
         print(f"**Average Pass Rate:** {stats['average_pass_rate']:.1f}%")
         print(f"**Pass Rate Range:** {stats['min_pass_rate']:.1f}% - {stats['max_pass_rate']:.1f}%")
-        print("\n### Error Distribution\n")
+        print("\n### Test Failure Distribution\n")
 
         for error_type, count in sorted(stats['error_distribution'].items(), key=lambda x: x[1], reverse=True):
             print(f"- **{error_type}:** {count}")
