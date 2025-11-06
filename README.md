@@ -1,8 +1,7 @@
 # Backend API Integration Testing Framework
 
 [![API Integration Tests](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/test.yml/badge.svg)](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/test.yml)
-[![Scheduled Tests](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/scheduled-test.yml/badge.svg)](https://github.com/syamsasi99/n8n-demo-backend-tests/actions/workflows/scheduled-test.yml)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A Python-based backend API integration testing framework built with pytest that simulates API tests with random failures for realistic testing scenarios.
@@ -24,9 +23,7 @@ A Python-based backend API integration testing framework built with pytest that 
 n8n-demo-backend-tests/
 ├── .github/
 │   └── workflows/
-│       ├── test.yml                # Main CI/CD workflow with Google Drive upload
-│       ├── continuous-test.yml     # Multi-run testing workflow
-│       └── scheduled-test.yml      # Scheduled monitoring workflow
+│       └── test.yml                # Main CI/CD workflow with Google Drive upload
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py                 # Pytest fixtures and log capturing
@@ -387,12 +384,7 @@ Where:
 
 ### CI/CD Integration
 
-GitHub Actions workflows automatically upload reports to Google Drive when:
-- Tests run on push/PR (test.yml)
-- Scheduled tests run every 6 hours (scheduled-test.yml)
-- Continuous testing runs (continuous-test.yml)
-
-Reports include detailed logs for AI-powered failure analysis.
+GitHub Actions automatically uploads reports to Google Drive when tests run on push, pull requests, or scheduled runs (test.yml). Reports include detailed logs for AI-powered failure analysis.
 
 ## Troubleshooting
 
