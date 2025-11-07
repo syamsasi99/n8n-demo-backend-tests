@@ -125,3 +125,12 @@ jobs:
             repo: context.repo.repo,
             body: comment
           });
+
+    - name: Notify n8n Workflow Completion
+      if: always()
+      run: |
+        echo "Sending completion callback to n8n..."
+        curl -X POST \
+          -H "Content-Type: application/json" \
+          -d "{\"status\": \"completed\", \"conclusion\": \"${{ job.status }}\"}" \
+          "${{ github.event.inputs.resumeUrl }}"
